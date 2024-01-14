@@ -83,14 +83,13 @@ class AudioStream(object):
         plt.show(block=False)
 
     def start_plot(self):
-        vol_size = 50
-        combine_vol_chunks = 2**6
+        vol_size = 25
+        combine_vol_chunks = 2**3
         print('stream started')
         frame_count = 0
         start_time = time.time()
-        vol_aplifier = 15
-        voL_scale = 1
-        last_frames = np.zeros((vol_size,self.CHUNK))
+        vol_aplifier = 1
+        last_frames = np.zeros((vol_size,self.CHUNK // combine_vol_chunks))
         while not self.pause:
 
             data = self.stream.read(self.CHUNK)
@@ -102,31 +101,38 @@ class AudioStream(object):
             # compute FFT and update line
             yf = fft(data_int)
 
+            processed_yf = [0] * (self.CHUNK //  combine_vol_chunks)
+            proc_yf_show = [0] * len(yf)
+            for i in range(self.CHUNK // combine_vol_chunks):
+                processed_yf[i] = max(yf[i*combine_vol_chunks:(i+1) * combine_vol_chunks])
+                proc_yf_show[i*combine_vol_chunks:(i+1) * combine_vol_chunks] = [processed_yf[i]] * combine_vol_chunks
+            
+            yf = proc_yf_show
+
             self.line_fft.set_ydata(
-                np.abs(yf[0:self.CHUNK]) / (128 * self.CHUNK))
+                np.abs(yf[0:self.CHUNK])  / (128 * self.CHUNK) * 3)
 
             # compute volatility
-            last_frames[frame_count % vol_size] = data_np[:]
+            last_frames[frame_count % vol_size] = processed_yf
             #volatility = [np.std(last_frames[:,i//combine_vol_chunks]) / np.mean(last_frames[:,i//combine_vol_chunks]) for i in range(self.CHUNK)]
             # make a fast version of volatility calculation
             volatility = last_frames.std(axis=0) / np.mean(last_frames, axis=0)
 
-
-            for i in range(len(volatility) // combine_vol_chunks):
-                volatility[i*combine_vol_chunks:(i+1) * combine_vol_chunks] = [max(volatility[i*combine_vol_chunks:(i+1) * combine_vol_chunks])] * combine_vol_chunks
+    
 
 
             volatility /= np.max(volatility)
             #print(volatility)
 
             volatility = np.array(volatility) ** vol_aplifier
-            volatility = np.array(volatility) * voL_scale
+
+            volatility_show = [0] * self.CHUNK
+            for i in range(len(volatility)):
+                volatility_show[i*combine_vol_chunks:(i+1) * combine_vol_chunks] = [volatility[i]] * combine_vol_chunks
 
 
-            volatility.resize(self.CHUNK)
 
-
-            self.line_vol.set_ydata(volatility)
+            self.line_vol.set_ydata(volatility_show)
             ## Amplify
 
 
